@@ -386,14 +386,15 @@ async function prepareMessages(
     completionMessages: BaseMessage[]
     persistedHumanMessage: BaseMessage
 }> {
-    const [recentMessage, lastMessage] = await formatMessage(
-        messages,
-        config,
-        model,
-        currentPreset.system.rawString,
-        currentPreset.input.rawString,
-        focusMessage
-    )
+    const { recentMessages, lastMessage, contextMessages } =
+        await formatMessage(
+            messages,
+            config,
+            model,
+            currentPreset.system.rawString,
+            currentPreset.input.rawString,
+            focusMessage
+        )
 
     const formattedSystemPrompt = await currentPreset.system.format(
         {
@@ -408,7 +409,7 @@ async function prepareMessages(
     )
 
     if (!chain) {
-        logger.debug('messages_new: ' + JSON.stringify(recentMessage))
+        logger.debug('messages_new: ' + JSON.stringify(recentMessages))
         logger.debug('messages_last: ' + JSON.stringify(lastMessage))
     }
 
@@ -425,7 +426,7 @@ async function prepareMessages(
         conversationId: session.isDirect ? session.userId : session.guildId
     }
 
-    let historyNewMessages = recentMessage
+    let historyNewMessages = recentMessages
     if (
         config.modelCompletionCount > 0 &&
         temp.lastHistoryNew &&
@@ -433,12 +434,12 @@ async function prepareMessages(
     ) {
         let overlap = Math.min(
             temp.lastHistoryNew.length,
-            recentMessage.length
+            recentMessages.length
         )
 
         while (overlap > 0) {
             const previous = temp.lastHistoryNew.slice(-overlap)
-            const current = recentMessage.slice(0, overlap)
+            const current = recentMessages.slice(0, overlap)
 
             if (previous.every((msg, index) => msg === current[index])) {
                 break
@@ -448,11 +449,11 @@ async function prepareMessages(
         }
 
         if (overlap > 0) {
-            historyNewMessages = ['...'].concat(recentMessage.slice(overlap))
+            historyNewMessages = ['...'].concat(recentMessages.slice(overlap))
         }
     }
 
-    temp.lastHistoryNew = recentMessage.slice()
+    temp.lastHistoryNew = recentMessages.slice()
     const humanMessage = new HumanMessage(
         await currentPreset.input.format(
             {
@@ -477,7 +478,7 @@ async function prepareMessages(
     const persistedHumanMessage = new HumanMessage(
         await currentPreset.input.format(
             {
-                history_new: recentMessage
+                history_new: recentMessages
                     .join('\n\n')
                     .replaceAll('{', '{{')
                     .replaceAll('}', '}}'),
@@ -498,7 +499,7 @@ async function prepareMessages(
     const tempMessages: BaseMessage[] = []
 
     if (config.image) {
-        for (const message of messages) {
+        for (const message of contextMessages) {
             if (message.images && message.images.length > 0) {
                 /*    for (const image of message.images) {
                     const imageMessage = new HumanMessage(
