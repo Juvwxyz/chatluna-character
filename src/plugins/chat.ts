@@ -128,12 +128,16 @@ function createStreamConfig(
     presetName: string,
     signal?: AbortSignal
 ) {
+    const conversationId = `${session.platform}:${
+        session.isDirect ? 'private' : 'guild'
+    }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
+
     return {
         configurable: {
             session,
             model,
             userId: session.userId,
-            conversationId: session.isDirect ? session.userId : session.guildId,
+            conversationId,
             preset: presetName
         },
         signal
@@ -151,6 +155,10 @@ async function* streamAgentResponseContents(
     lastMessage: BaseMessage,
     signal?: AbortSignal
 ): AsyncGenerator<StreamedResponseContentChunk> {
+    const conversationId = `${session.platform}:${
+        session.isDirect ? 'private' : 'guild'
+    }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
+
     const responseStream = chain.stream(
         {
             instructions: getMessageContent(systemMessage?.content ?? ''),
@@ -158,9 +166,7 @@ async function* streamAgentResponseContents(
             input: lastMessage,
             configurable: {
                 session,
-                conversationId: session.isDirect
-                    ? session.userId
-                    : session.guildId,
+                conversationId,
                 preset: presetName
             }
         },
@@ -926,8 +932,7 @@ export async function apply(ctx: Context, config: Config) {
 
             if (copyOfConfig.toolCalling) {
                 chainPool[key] =
-                    chainPool[key] ??
-                    (await createChatLunaChain(ctx, model, session))
+                    chainPool[key] ?? (await createChatLunaChain(ctx, model))
             }
 
             const latestMessages = service.getMessages(key) ?? messages
