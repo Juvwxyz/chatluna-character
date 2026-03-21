@@ -112,8 +112,10 @@ function findIdleTriggerReason(
         const backoffSeconds =
             baseSeconds * Math.pow(2, Math.max(info.passiveRetryCount ?? 0, 0))
         const maxSeconds =
-            Math.max(copyOfConfig.idleTrigger.idleTriggerMaxIntervalMinutes, 1) *
-            60
+            Math.max(
+                copyOfConfig.idleTrigger.idleTriggerMaxIntervalMinutes,
+                1
+            ) * 60
         if (backoffSeconds >= maxSeconds) {
             return undefined
         }
@@ -481,7 +483,12 @@ async function processSchedulerTickForGuild(
             ? `Triggered by wake_up_reply: ${triggeredWakeUpReply.naturalReason}`
             : undefined) ??
         findNextReplyTriggerReason(info) ??
-        findZeroIntervalTriggerReason(info, copyOfConfig, now, session.isDirect) ??
+        findZeroIntervalTriggerReason(
+            info,
+            copyOfConfig,
+            now,
+            session.isDirect
+        ) ??
         findIdleTriggerReason(info, copyOfConfig, now)
 
     if (!triggerReason) {

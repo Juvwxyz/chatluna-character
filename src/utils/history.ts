@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import { Context, h, Logger, Session } from 'koishi'
 import OneBotBot from 'koishi-plugin-adapter-onebot'
 import { Config } from '..'
@@ -131,9 +132,7 @@ async function pullBot(
             break
         }
 
-        const list = (await Promise.all(
-            batch.map((msg) => toBotMsg(cfg, msg))
-        ))
+        const list = (await Promise.all(batch.map((msg) => toBotMsg(cfg, msg))))
             .filter((msg): msg is Message => msg != null)
             .filter((msg) => !sameMessage(msg, cfg.focusMessage))
             .filter(
@@ -238,9 +237,7 @@ async function pullOneBot(
             messageSeq = oldest.message_seq
         }
 
-        return (await Promise.all(
-            results.map((msg) => toOneBotMsg(cfg, msg))
-        ))
+        return (await Promise.all(results.map((msg) => toOneBotMsg(cfg, msg))))
             .filter((msg): msg is Message => msg != null)
             .filter((msg) => !sameMessage(msg, cfg.focusMessage))
             .filter(
@@ -328,9 +325,7 @@ async function pullOneBot(
         messageId = oldest.message_id
     }
 
-    return (await Promise.all(
-        results.map((msg) => toOneBotMsg(cfg, msg))
-    ))
+    return (await Promise.all(results.map((msg) => toOneBotMsg(cfg, msg))))
         .filter((msg): msg is Message => msg != null)
         .filter((msg) => !sameMessage(msg, cfg.focusMessage))
         .filter(

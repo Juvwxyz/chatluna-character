@@ -118,15 +118,14 @@ export function createResponseElementRenders(
 
     renders.file = {
         parse: createMatch,
-        render: (match) => [h('file', match.extra ?? {}, [h.text(match.content)])],
+        render: (match) => [
+            h('file', match.extra ?? {}, [h.text(match.content)])
+        ],
         process: (el) => {
             const url = getElementText(el.children).trim()
             const name = String(el.attrs.name || 'file')
 
-            const file = h('file', { name })
-            file.attrs['src'] = url
-            file.attrs['chatluna_file_url'] = url
-            return [file]
+            return [h('file', { name, src: url, chatluna_file_url: url })]
         }
     }
 

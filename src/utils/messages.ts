@@ -288,7 +288,9 @@ export function mapElementToString(
             const escapedName = escapeXml(String(name), true)
             const escapedUrl = escapeXml(String(url))
 
-            filteredBuffer.push(`<file name="${escapedName}">${escapedUrl}</file>`)
+            filteredBuffer.push(
+                `<file name="${escapedName}">${escapedUrl}</file>`
+            )
         } else if (element.type === 'video' || element.type === 'audio') {
             const url = element.attrs['chatluna_file_url']
             if (!url) {
