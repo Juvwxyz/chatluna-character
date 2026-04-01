@@ -970,12 +970,15 @@ export async function apply(ctx: Context, config: Config) {
             )) {
                 latestStatus = chunk.parsedResponse.status ?? latestStatus
 
+                const canSend = chunk.parsedResponse.elements.some(
+                    (elements) => elements.length > 0
+                )
                 const isEmptyReply =
-                    chunk.parsedResponse.elements.length < 1 &&
+                    !canSend &&
                     chunk.parsedResponse.rawMessage.trim().length < 1
                 if (isEmptyReply) {
                     hasEmptyReplies = true
-                } else {
+                } else if (canSend) {
                     hasNonEmptyReplies = true
                 }
 
