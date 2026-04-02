@@ -403,6 +403,13 @@ const globalGroupConfigObject = Schema.intersect([
             .max(10000)
             .description(
                 '固定间隔触发的消息间隔（条）：累计到该条数后自动触发一次；设为 0 时每一条消息都会触发请求'
+            ),
+        messageWaitTime: Schema.number()
+            .default(0)
+            .min(0)
+            .max(300)
+            .description(
+                '发言等待时长（秒）：messageInterval为0，或在群聊中被@/昵称触发时生效；触发后会等待同一用户可能继续发送的新消息，连续 N 秒没有新消息才触发回复'
             )
     })
         .description('基础')
@@ -467,6 +474,13 @@ const guildConfigObject = Schema.intersect([
             .max(10000)
             .description(
                 '固定间隔触发的消息间隔（条）：累计到该条数后自动触发一次；设为 0 时每一条消息都会触发请求'
+            ),
+        messageWaitTime: Schema.number()
+            .default(0)
+            .min(0)
+            .max(300)
+            .description(
+                '发言等待时长（秒）：messageInterval为0，或在群聊中被@/昵称触发时生效；触发后会等待同一用户可能继续发送的新消息，连续 N 秒没有新消息才触发回复'
             )
     })
         .description('基础')

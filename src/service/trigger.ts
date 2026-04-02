@@ -333,6 +333,8 @@ export function createDefaultGroupInfo(config: Config, now: number): GroupInfo {
         lastUserMessageTime: now,
         passiveRetryCount: 0,
         currentIdleWaitSeconds: undefined,
+        pendingDirectTrigger: undefined,
+        pendingUserTriggers: {},
         pendingNextReplies: [],
         pendingWakeUpReplies: []
     }

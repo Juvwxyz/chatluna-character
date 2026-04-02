@@ -40,6 +40,7 @@ export interface GuildConfig {
     enableMessageId: boolean
     enableFixedIntervalTrigger: boolean
     messageInterval: number
+    messageWaitTime: number
     idleTrigger: {
         enableLongWaitTrigger: boolean
         idleTriggerIntervalMinutes: number
@@ -79,9 +80,7 @@ export type PrivateConfig = Omit<
     | 'messageActivityScoreUpperLimit'
     | 'enableActivityScoreTrigger'
     | 'isAt'
-> & {
-    messageWaitTime: number
-}
+>
 
 export interface CharacterVariableRecord {
     sessionKey: string
@@ -142,6 +141,14 @@ export interface GroupInfo {
     lastPassiveTriggerAt?: number
     passiveRetryCount?: number
     currentIdleWaitSeconds?: number
+    pendingDirectTrigger?: {
+        userId: string
+        reason: string
+    }
+    pendingUserTriggers?: Record<
+        string,
+        { reason: string; lastMessageAt: number; isDirectTrigger: boolean }
+    >
     pendingNextReplies?: PendingNextReply[]
     pendingWakeUpReplies?: PendingWakeUpReply[]
 }
