@@ -40,6 +40,7 @@ function markTriggered(
         )
     }
 
+    info.pendingDirectTrigger = undefined
     info.pendingNextReplies = []
 }
 
@@ -320,11 +321,9 @@ function resolveImmediateTriggerReason(
             return undefined
         }
 
-        if (isDirectTrigger) {
-            return isAppel ? 'Mention or quote trigger' : 'Nickname trigger'
-        }
-
-        return 'Message interval reached (0 mode)'
+        // For group chats with messageInterval === 0, don't trigger immediately
+        // Instead, handle via pendingUserTriggers in the scheduler
+        return undefined
     }
 
     if (info.messageCount >= copyOfConfig.messageInterval) {
@@ -368,6 +367,71 @@ function findZeroIntervalTriggerReason(
     return `Message wait reached (${wait}s)`
 }
 
+function findPendingDirectTriggerReason(
+    info: GroupInfo,
+    copyOfConfig: Config,
+    now: number,
+    isDirect: boolean
+) {
+    if (isDirect) {
+        return undefined
+    }
+
+    const pendingDirectTrigger = info.pendingDirectTrigger
+    if (pendingDirectTrigger == null) {
+        return undefined
+    }
+
+    const wait = Math.max(copyOfConfig.messageWaitTime, 0)
+    const lastUserMessageTime =
+        info.messageTimestampsByUserId?.[pendingDirectTrigger.userId] ?? 0
+
+    if (now - lastUserMessageTime < wait * 1000) {
+        return undefined
+    }
+
+    return `${pendingDirectTrigger.reason} wait reached (${wait}s)`
+}
+
+function findPendingUserTriggerReason(
+    info: GroupInfo,
+    copyOfConfig: Config,
+    now: number,
+    isDirect: boolean
+) {
+    if (isDirect) {
+        return undefined
+    }
+
+    const pendingUserTriggers = info.pendingUserTriggers ?? {}
+    const wait = Math.max(copyOfConfig.messageWaitTime, 0)
+    const readyUserIds: string[] = []
+    let directTriggerReason: string | undefined
+    let fallbackReason: string | undefined
+
+    for (const [userId, trigger] of Object.entries(pendingUserTriggers)) {
+        if (now - trigger.lastMessageAt >= wait * 1000) {
+            readyUserIds.push(userId)
+
+            const reason = `${trigger.reason} wait reached (${wait}s)`
+            if (trigger.isDirectTrigger && directTriggerReason == null) {
+                directTriggerReason = reason
+            } else if (fallbackReason == null) {
+                fallbackReason = reason
+            }
+        }
+    }
+
+    if (readyUserIds.length < 1) {
+        return undefined
+    }
+
+    return {
+        readyUserIds,
+        reason: directTriggerReason ?? fallbackReason!
+    }
+}
+
 function resolveTriggerReason(
     info: GroupInfo,
     copyOfConfig: Config,
@@ -400,11 +464,17 @@ function resolveTriggerReason(
     return undefined
 }
 
-function hasPendingSchedulerWork(info: GroupInfo, copyOfConfig: Config) {
+function hasPendingSchedulerWork(
+    info: GroupInfo,
+    copyOfConfig: Config,
+    isDirect: boolean
+) {
     return (
+        info.pendingDirectTrigger != null ||
+        Object.keys(info.pendingUserTriggers ?? {}).length > 0 ||
         (copyOfConfig.enableFixedIntervalTrigger !== false &&
             copyOfConfig.messageInterval === 0 &&
-            info.messageCount > 0) ||
+            (isDirect ? info.messageCount > 0 : false)) ||
         copyOfConfig.idleTrigger.enableLongWaitTrigger ||
         (info.pendingNextReplies?.length ?? 0) > 0 ||
         (info.pendingWakeUpReplies?.length ?? 0) > 0
@@ -445,7 +515,7 @@ function shouldRecycleGroupInfo(
         return true
     }
 
-    if (hasPendingSchedulerWork(info, copyOfConfig)) {
+    if (hasPendingSchedulerWork(info, copyOfConfig, isDirect)) {
         return false
     }
 
@@ -508,10 +578,24 @@ async function processSchedulerTickForGuild(
         return
     }
 
+    const pendingUserTrigger = findPendingUserTriggerReason(
+        info,
+        copyOfConfig,
+        now,
+        session.isDirect
+    )
+
     const triggerReason =
         (triggeredWakeUpReply
             ? `Triggered by wake_up_reply: ${triggeredWakeUpReply.naturalReason}`
             : undefined) ??
+        (pendingUserTrigger ? pendingUserTrigger.reason : undefined) ??
+        findPendingDirectTriggerReason(
+            info,
+            copyOfConfig,
+            now,
+            session.isDirect
+        ) ??
         findNextReplyTriggerReason(info) ??
         findZeroIntervalTriggerReason(
             info,
@@ -556,6 +640,13 @@ async function processSchedulerTickForGuild(
         )
 
         await store.setWakeUpReplies(session, info.pendingWakeUpReplies ?? [])
+    }
+
+    // Consume all ready user triggers from this scheduler tick.
+    if (pendingUserTrigger) {
+        for (const userId of pendingUserTrigger.readyUserIds) {
+            delete info.pendingUserTriggers?.[userId]
+        }
     }
 
     updatePassiveRetryStateAfterTriggered(
@@ -678,7 +769,7 @@ export async function apply(ctx: Context, config: Config) {
                 continue
             }
 
-            if (!hasPendingSchedulerWork(info, copyOfConfig)) {
+            if (!hasPendingSchedulerWork(info, copyOfConfig, isDirect)) {
                 continue
             }
 
@@ -819,6 +910,41 @@ export async function apply(ctx: Context, config: Config) {
             isAppel,
             session.isDirect
         )
+
+        // For group chats with messageInterval === 0, handle via pendingUserTriggers
+        if (!session.isDirect && copyOfConfig.messageInterval === 0) {
+            const reason = isDirectTrigger
+                ? isAppel
+                    ? 'Mention or quote trigger'
+                    : 'Nickname trigger'
+                : 'Message interval reached (0 mode)'
+            info.pendingUserTriggers = info.pendingUserTriggers ?? {}
+            info.pendingUserTriggers[message.id] = {
+                reason,
+                lastMessageAt: now,
+                isDirectTrigger
+            }
+            info.messageCount++
+            store.set(key, info)
+            return
+        }
+
+        const shouldWaitDirectTrigger =
+            !session.isDirect &&
+            isDirectTrigger &&
+            copyOfConfig.messageWaitTime > 0 &&
+            immediateTriggerReason ===
+                (isAppel ? 'Mention or quote trigger' : 'Nickname trigger')
+
+        if (shouldWaitDirectTrigger) {
+            info.pendingDirectTrigger = {
+                userId: message.id,
+                reason: immediateTriggerReason
+            }
+            info.messageCount++
+            store.set(key, info)
+            return
+        }
 
         if (immediateTriggerReason) {
             if (!isMute) {
